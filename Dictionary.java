@@ -5,7 +5,6 @@ import java.util.HashSet;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.io.*;
-import java.util.Enumeration;
 
 public class Dictionary {
 	// HashSet is a collection. You can not store duplicate value in HashSet. 
