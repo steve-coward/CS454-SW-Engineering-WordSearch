@@ -1,6 +1,10 @@
 //
 package wordSearch;
 
+import java.io.BufferedReader;
+import java.io.DataInputStream;
+import java.io.FileInputStream;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Random;
 import java.util.HashSet;
@@ -9,6 +13,7 @@ public class wordArray {
 	private int m_size;
 	private int m_numSlots;
 	private int m_offset[];
+	private int m_wordCount;
 	private char m_grid[];
 	private Dictionary m_dictionary;
 	
@@ -31,6 +36,7 @@ public class wordArray {
 	public wordArray(int size) {
 		m_size = size;
 		m_numSlots = (m_size+2)*(m_size+2);
+		m_wordCount = -1;
 		
 		m_offset = new int [m_numDirs];
 		m_offset[m_horizontal] = 1;
@@ -46,7 +52,7 @@ public class wordArray {
 	// 16600/3 words is extremely small.  Therefore an intelligent algorithm is
 	// required.
 	//
-	public boolean initialize() {
+	public boolean initialize(long seed) {
 		int len;
 		int dir;
 		String word;
@@ -66,8 +72,10 @@ public class wordArray {
 		int[] ud2 = { 36,29,30,37,22,23,24,31,38,15,16,17,18,25,32,39 };
 
 		// For testing only, make random stream deterministic and repeatable
-		Random rand = new Random( 19580426 );
-		//Random rand = new Random(  );
+		//Random rand = new Random( 19580426 );
+		Random rand = new Random( seed );
+		
+		System.out.println("Seeding with random number " + seed);
 		
 		// Fill with .'s
 		for (int i=0; i<m_numSlots;i+=m_offset[m_horizontal]) {
@@ -183,8 +191,10 @@ public class wordArray {
 			}
 		}
 		
+		//printGrid();
+		
 		// Now fill empty spaces randomly
-		for (int i=0; i<m_size*m_size;i++) {
+		for (int i=0; i<(m_size+2)*(m_size+2);i++) {
 			if (m_grid[i] == '.') {
 				m_grid[i] = (char) ((rand.nextInt(26)) + 'a');
 			}
@@ -192,12 +202,68 @@ public class wordArray {
 
 		//printGrid();
 		
-		int count = countAllWords();
-		System.out.println("Grid contains " + count + " words.\n");
+		m_wordCount = countAllWords();
+		System.out.println("Grid contains " + m_wordCount + " words.");
 	
 		return(true);
 	}
 	
+
+	public boolean initialize(String initFile) {
+
+		// Fill with .'s
+		for (int i=0; i<m_numSlots;i+=m_offset[m_horizontal]) {
+			m_grid[i] = '.';
+		}
+		for (int i=0; i<m_size+2;i+=m_offset[m_horizontal]) {
+			m_grid[i] = m_deadchar;
+		}
+		for (int i=m_numSlots-m_size-2;i<m_numSlots;i++) {
+			m_grid[i] = m_deadchar;
+		}
+		for (int i=0; i<m_numSlots;i+=m_offset[m_vertical]) {
+			m_grid[i] = m_deadchar;
+		}
+		for (int i=m_size+1; i<m_numSlots;i+=m_offset[m_vertical]) {
+			m_grid[i] = m_deadchar;
+		}
+
+		try {
+			// Open the file that is the first 
+			// command line parameter
+			FileInputStream fstream = new FileInputStream(initFile);
+			// Get the object of DataInputStream
+			DataInputStream in = new DataInputStream(fstream);
+			BufferedReader br = new BufferedReader(new InputStreamReader(in));
+			String strLine;
+			// Read File Line By Line
+			// expecting 5x5 character array as input
+			int row = 0;
+			while ((strLine = br.readLine()) != null) {
+				assert(strLine.length() != m_size);
+				assert(row < m_size);
+
+				for (int i=0; i<m_size;i++) {
+					m_grid[screen2grid(row*m_size+i)] = strLine.charAt(i);
+				}
+				row++;
+			}
+			assert(row == m_size);
+			//Close the input stream
+			in.close();
+		} catch (Exception e){//Catch exception if any
+			System.err.println("Error: " + e.getMessage());
+		}
+		
+		//printGrid();
+		
+		m_wordCount = countAllWords();
+		System.out.println("Grid contains " + m_wordCount + " words.\n");
+	
+		return(true);
+	}
+	
+	// 5x5 -> 7x7
 	private int screen2grid(int p) {
 		if (p<5)  return(p+8);
 		if (p<10) return(p+10);
@@ -206,7 +272,7 @@ public class wordArray {
 		return(p+16);
 	}
 	
-	// start and end are in 'character' space
+	// start and end are in 5x5 space
 	public Boolean isWord(int start, int end) {
 		Boolean bIsWord = false;
 		
@@ -217,28 +283,28 @@ public class wordArray {
 			(start == end)) {
 			bIsWord = false;
 		}
-		else if ((end>start) && ((end-start)<5) && ((start/5) == (end/5))) {
+		else if ((end>start) && ((end-start)<m_size) && ((start/m_size) == (end/m_size))) {
 			// horizontal
 			//System.out.println(readWord(m_horizontal, screen2grid(start), end-start+1));
 			word = readWord(m_horizontal, screen2grid(start), end-start+1);
 			bIsWord = m_dictionary.IsWord(word);
 		}
-		else if ((end>start) && ((end-start)%5==0)) {
+		else if ((end>start) && ((end-start)%m_size==0)) {
 			// vertical
-			//System.out.println(readWord(m_vertical, screen2grid(start), (end-start)/5));
-			word = readWord(m_vertical, screen2grid(start), (end-start)/5);
+			//System.out.println(readWord(m_vertical, screen2grid(start), (end-start)/m_size));
+			word = readWord(m_vertical, screen2grid(start), (end-start)/m_size);
 			bIsWord = m_dictionary.IsWord(word);
 		}
-		else if ((end>start) && ((end-start)%6==0)) {
+		else if ((end>start) && ((end-start)%(m_size+1)==0)) {
 			// down diagonal
-			//System.out.println(readWord(m_dndiag, screen2grid(start), (end-start)/6+1));
-			word = readWord(m_dndiag, screen2grid(start), (end-start)/6+1);
+			//System.out.println(readWord(m_dndiag, screen2grid(start), (end-start)/(m_size+1)+1));
+			word = readWord(m_dndiag, screen2grid(start), (end-start)/(m_size+1)+1);
 			bIsWord = m_dictionary.IsWord(word);
 		}
-		else if ((end<start) && ((start-end)%4==0)) {
+		else if ((end<start) && ((start-end)%(m_size-1)==0)) {
 			// up diagonal
-			//System.out.println(readWord(m_updiag, screen2grid(start), (start-end)/4+1));
-			word = readWord(m_updiag, screen2grid(start), (start-end)/4+1);
+			//System.out.println(readWord(m_updiag, screen2grid(start), (start-end)/(m_size-1)+1));
+			word = readWord(m_updiag, screen2grid(start), (start-end)/(m_size-1)+1);
 			bIsWord = m_dictionary.IsWord(word);
 		}
 		
@@ -254,28 +320,28 @@ public class wordArray {
 			(start == end)) {
 			bIsWord = false;
 		}
-		else if ((end>start) && ((end-start)<5) && ((start/5) == (end/5))) {
+		else if ((end>start) && ((end-start)<m_size) && ((start/m_size) == (end/m_size))) {
 			// horizontal
 			//System.out.println(readWord(m_horizontal, screen2grid(start), end-start+1));
 			word = readWord(m_horizontal, screen2grid(start), end-start+1);
 			bIsWord = m_dictionary.IsWord(word);
 		}
-		else if ((end>start) && ((end-start)%5==0)) {
+		else if ((end>start) && ((end-start)%m_size==0)) {
 			// vertical
-			//System.out.println(readWord(m_vertical, screen2grid(start), (end-start)/5));
-			word = readWord(m_vertical, screen2grid(start), (end-start)/5);
+			//System.out.println(readWord(m_vertical, screen2grid(start), (end-start)/m_size));
+			word = readWord(m_vertical, screen2grid(start), (end-start)/m_size);
 			bIsWord = m_dictionary.IsWord(word);
 		}
-		else if ((end>start) && ((end-start)%6==0)) {
+		else if ((end>start) && ((end-start)%(m_size+1)==0)) {
 			// down diagonal
-			//System.out.println(readWord(m_dndiag, screen2grid(start), (end-start)/6+1));
-			word = readWord(m_dndiag, screen2grid(start), (end-start)/6+1);
+			//System.out.println(readWord(m_dndiag, screen2grid(start), (end-start)/(m_size+1)+1));
+			word = readWord(m_dndiag, screen2grid(start), (end-start)/(m_size+1)+1);
 			bIsWord = m_dictionary.IsWord(word);
 		}
-		else if ((end<start) && ((start-end)%4==0)) {
+		else if ((end<start) && ((start-end)%(m_size-1)==0)) {
 			// up diagonal
-			//System.out.println(readWord(m_updiag, screen2grid(start), (start-end)/4+1));
-			word = readWord(m_updiag, screen2grid(start), (start-end)/4+1);
+			//System.out.println(readWord(m_updiag, screen2grid(start), (start-end)/(m_size-1)+1));
+			word = readWord(m_updiag, screen2grid(start), (start-end)/(m_size-1)+1);
 			bIsWord = m_dictionary.IsWord(word);
 		}
 		
@@ -298,11 +364,19 @@ public class wordArray {
 			start += m_offset[dir];
 		}
 
-        String s = sb.toString();
+		String s = sb.toString();
         
         return(s);
 	}
 	
+	
+	public int getWordCount() {
+		if (m_wordCount < 0) {
+			m_wordCount = countAllWords();
+		}
+		
+		return(m_wordCount);
+	}
 	
 	public void printGrid() {
 		//printWholeGrid();
@@ -335,7 +409,7 @@ public class wordArray {
 		String word;
 		HashSet<String> foundwords = new HashSet<String>();
 		
-		for (int start=0; start<m_size*m_size;start++) {
+		for (int start=0; start<(m_size+2)*(m_size+2);start++) {
 			for (int l=2; l<=m_size; l++) {
 				for (int dir=0; dir<m_numDirs; dir++) {
 					word = readWord(dir, start, l);
@@ -355,7 +429,7 @@ public class wordArray {
 		String word;
 		ArrayList<String> foundwords = new ArrayList<String>();
 		
-		for (int start=0; start<m_size*m_size;start++) {
+		for (int start=0; start<(m_size+2)*(m_size+2);start++) {
 			for (int l=2; l<=m_size; l++) {
 				for (int dir=0; dir<m_numDirs; dir++) {
 					word = readWord(dir, start, l);

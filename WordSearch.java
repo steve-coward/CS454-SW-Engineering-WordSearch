@@ -16,9 +16,20 @@ public class WordSearch {
 		wordArray wa = new wordArray(m_size);
 		
 		// Initialize grid with some words
-		wa.initialize();
-		
+		wa.initialize(1509);
 		wa.printGrid();
+		
+		for (int i = 13; i < 1700; i+=17 ) {
+			wa.initialize(i);
+		
+			wa.printGrid();
+		}
+		
+		for (int i = 0; i <= 2; i++ ){
+			wa.initialize("test/test-word-count-" + i + ".txt");
+		
+			wa.printGrid();
+		}
 		
 		// Some simple testing
 		ArrayList<Point> listPoints = new ArrayList<Point>();
@@ -35,11 +46,11 @@ public class WordSearch {
 		listPoints.add(new Point(16,4));
 		
 		Iterator<Point> itr = listPoints.iterator();
-	    while (itr.hasNext()){
-	    	Point p = itr.next();
-	    	if (wa.isWord( p.x, p.y )) {
+		while (itr.hasNext()){
+			Point p = itr.next();
+			if (wa.isWord( p.x, p.y )) {
 				System.out.println("Word: " + wa.getWord( p.x, p.y ));
 			}
-	    }
+		}
 	}
 }
