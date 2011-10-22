@@ -24,24 +24,19 @@ public class WordSearchDemoActivity extends Activity {
 		
 	private static int mGridSize = 5;
 	ImageAdapter mIA;
+	GridView gridview;
 	
 	@Override
     public void onCreate(Bundle savedInstanceState) {
     	super.onCreate(savedInstanceState);
     	setContentView(R.layout.main);
-    	final GridView gridview = (GridView) findViewById(R.id.gridview);
-    	//final Button buttonNewGame = (Button) findViewById(R.id.buttonNewGame);
+    	gridview = (GridView) findViewById(R.id.gridview);
     	
     	Resources resources = getResources();
 		InputStream is = resources.openRawResource(R.raw.dictionary);
 		
 		mIA = new ImageAdapter(this, mGridSize, is);
 		mIA.Initialize();
-		//buttonNewGame.setOnClickListener(new OnClickListener() {
-    	//	@Override
-    	//	public void onClick(View v) {
-    	//	}
-    	//});
 		gridview.setAdapter(mIA);
     	gridview.setOnItemClickListener(new OnItemClickListener() {
     		public void onItemClick(AdapterView<?> parent, View v, int position, long id) {
@@ -70,7 +65,13 @@ public class WordSearchDemoActivity extends Activity {
     
     public void OnNewGame(View view) {
     	Log.i(Global.INFO, "Button Clicked ");
-    	mIA.Initialize();
+    	//mIA.Initialize();
+    	
+    	Resources resources = getResources();
+    	InputStream is = resources.openRawResource(R.raw.dictionary);
+    	mIA = new ImageAdapter(this, mGridSize, is);
+		mIA.Initialize();
+		gridview.setAdapter(mIA);
     }
     public class ImageAdapter extends BaseAdapter {
     	private wordArray mWordGrid;
