@@ -9,8 +9,6 @@ import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Random;
 import java.util.HashSet;
-
-import android.content.res.AssetFileDescriptor;
 import android.util.Log;
 import wordsearchdemo.com.Global;
 
@@ -67,8 +65,10 @@ public class wordArray {
 		String regExp;
 		int numWords;
 		int numWordsPlaced;
-		int skipWords;
 		int numTries;
+		
+		m_wordCount = -1;
+		
 		// Possible starting positions for up/dn diagonal words of each length.
 		// It is just simpler this way.
 		int[] dd4 = { 8,9,15,16 };
@@ -81,25 +81,18 @@ public class wordArray {
 		// For testing only, make random stream deterministic and repeatable
 		//Random rand = new Random( 19580426 );
 		//Random rand = new Random( seed );
+		//Log.i(Global.INFO, "Seeding with random number " + seed);
 		Random rand = new Random( );
 		
-		Log.i(Global.INFO, "Seeding with random number " + seed);
+		// Advance dictionary iterator a random count
+		m_dictionary.advanceItr(rand.nextInt(m_dictionary.m_dictionary.size()));
 		
-		// Fill with .'s
-		for (int i=0; i<m_numSlots;i+=m_offset[m_horizontal]) {
-			m_grid[i] = '.';
-		}
-		for (int i=0; i<m_size+2;i+=m_offset[m_horizontal]) {
+		// Fill with .'s, surrounded by m_deadchar's
+		for (int i=0; i<(m_size+2)*(m_size+2);i++) {
 			m_grid[i] = m_deadchar;
 		}
-		for (int i=m_numSlots-m_size-2;i<m_numSlots;i++) {
-			m_grid[i] = m_deadchar;
-		}
-		for (int i=0; i<m_numSlots;i+=m_offset[m_vertical]) {
-			m_grid[i] = m_deadchar;
-		}
-		for (int i=m_size+1; i<m_numSlots;i+=m_offset[m_vertical]) {
-			m_grid[i] = m_deadchar;
+		for (int i=0; i<m_size*m_size;i++) {
+			m_grid[screen2grid(i)] = '.';
 		}
 				
 		// Pick a target number of words puzzle will contain
@@ -109,7 +102,7 @@ public class wordArray {
 		// Test that all combos can generate at least one puzzle
 		numWords = rand.nextInt(8) + 5;
 		numWords = 5;
-		//Log.i(Global.INFO, "Placing " + numWords + " words");
+		//Log.i(Global.INFO, "Trying to place " + numWords + " words");
 		
 		numWordsPlaced = 0;
 		numTries = 0;
@@ -117,12 +110,8 @@ public class wordArray {
 		while ((numTries < 10) && (numWordsPlaced < numWords)) {
 			numTries++;
 			
-			// Select a word length
+			// Select a word length - 2 through m_size
 			len = rand.nextInt(m_size-1) + 2;
-
-			// How to randomize word selected that meets requirements?
-			//skipWords = rand.nextInt(m_dictionary.m_wordCount.get(len)) + 1;
-			skipWords = rand.nextInt(10) + 1;
 
 			// Find direction of word
 			dir = rand.nextInt(m_numDirs); // hor, ver, dndiag, updiag
@@ -179,8 +168,8 @@ public class wordArray {
 				continue;
 			}
 
-			// Select word from dictionary
-			word = m_dictionary.findMatch(regExp, skipWords);
+			// Select word from dictionary, if a match exists
+			word = m_dictionary.findMatch(regExp);
 
 			if (word.length() == len) {
 				// found match! So place it into grid
@@ -221,21 +210,14 @@ public class wordArray {
 
 	public int Initialize(String initFile) {
 
-		// Fill with .'s
-		for (int i=0; i<m_numSlots;i+=m_offset[m_horizontal]) {
-			m_grid[i] = '.';
-		}
-		for (int i=0; i<m_size+2;i+=m_offset[m_horizontal]) {
+		m_wordCount = -1;
+		
+		// Fill with .'s, surrounded by m_deadchar's
+		for (int i=0; i<(m_size+2)*(m_size+2);i++) {
 			m_grid[i] = m_deadchar;
 		}
-		for (int i=m_numSlots-m_size-2;i<m_numSlots;i++) {
-			m_grid[i] = m_deadchar;
-		}
-		for (int i=0; i<m_numSlots;i+=m_offset[m_vertical]) {
-			m_grid[i] = m_deadchar;
-		}
-		for (int i=m_size+1; i<m_numSlots;i+=m_offset[m_vertical]) {
-			m_grid[i] = m_deadchar;
+		for (int i=0; i<m_size*m_size;i++) {
+			m_grid[screen2grid(i)] = '.';
 		}
 
 		try {
@@ -253,7 +235,8 @@ public class wordArray {
 				assert(strLine.length() != m_size);
 				assert(row < m_size);
 
-				for (int i=0; i<m_size;i++) {
+				strLine.toLowerCase();
+				for (int i=0; i<m_size; i++) {
 					m_grid[screen2grid(row*m_size+i)] = strLine.charAt(i);
 				}
 				row++;
@@ -265,6 +248,13 @@ public class wordArray {
 			Log.e(Global.INFO, "Error: " + e.getMessage());
 		}
 		
+		// Now check that grid is fully initialized with lower case letters
+		for (int i=0; i<m_size*m_size;i++) {
+			if ((m_grid[screen2grid(i)] < 'a') || (m_grid[screen2grid(i)] > 'z')) {
+				assert(false);
+			}
+		}
+
 		//printGrid();
 		
 		m_wordCount = countAllWords();
@@ -418,6 +408,7 @@ public class wordArray {
 		Log.i(Global.INFO, "\n");
 	}
 	
+	@SuppressWarnings("unused")
 	private void printWholeGrid() {
 		Log.i(Global.INFO, "\n");
 		
@@ -431,26 +422,25 @@ public class wordArray {
 	}
 	
 	private int countAllWords() {
-		int count = 0;
 		String word;
 		HashSet<String> foundwords = new HashSet<String>();
 		
-		for (int start=0; start<(m_size+2)*(m_size+2);start++) {
+		for (int start=0; start<m_size*m_size-1;start++) {
 			for (int l=2; l<=m_size; l++) {
 				for (int dir=0; dir<m_numDirs; dir++) {
-					word = readWord(dir, start, l);
+					word = readWord(dir, screen2grid(start), l);
 					if (m_dictionary.IsWord(word) && (!foundwords.contains(word))) {
 						//Log.i(Global.INFO, "Found " + word);
 						foundwords.add(word);
-						count++;
 					}
 				}
 			}
 		}
 		
-		return(count);
+		return(foundwords.size());
 	}
 	
+	@SuppressWarnings("unused")
 	private ArrayList<String> findAllWords() {
 		String word;
 		ArrayList<String> foundwords = new ArrayList<String>();

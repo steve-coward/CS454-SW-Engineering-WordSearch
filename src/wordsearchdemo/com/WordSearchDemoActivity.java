@@ -1,6 +1,8 @@
 package wordsearchdemo.com;
 
 import java.io.InputStream;
+import java.util.HashSet;
+import java.util.Iterator;
 
 import android.app.Activity;
 import android.content.Context;
@@ -9,13 +11,14 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.View.OnClickListener;
 import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.BaseAdapter;
 import android.widget.GridView;
+import android.widget.TextView;
+import android.widget.Spinner;
 import android.widget.ImageView;
 import android.widget.Toast;
-import android.widget.Button;
 import android.widget.AdapterView.OnItemClickListener;
 import wordSearch.*;
 import wordsearchdemo.com.Global;
@@ -24,21 +27,36 @@ public class WordSearchDemoActivity extends Activity {
 		
 	private static int mGridSize = 5;
 	ImageAdapter mIA;
-	GridView gridview;
+	GridView mGridView;
+	TextView mTextViewScore;
+	TextView mTextViewTotal;
+	HashSet<String> mWordsFound;
+	int mMisses;
+	int mNumWordsTotal;
+	Spinner mSpinWordsFound;
 	
 	@Override
     public void onCreate(Bundle savedInstanceState) {
     	super.onCreate(savedInstanceState);
     	setContentView(R.layout.main);
-    	gridview = (GridView) findViewById(R.id.gridview);
+    	mGridView = (GridView) findViewById(R.id.gridview);
+    	mTextViewScore = (TextView) findViewById(R.id.textViewScore);
+    	mTextViewTotal = (TextView) findViewById(R.id.textViewTotal);
     	
     	Resources resources = getResources();
 		InputStream is = resources.openRawResource(R.raw.dictionary);
 		
+		mSpinWordsFound = (Spinner) findViewById(R.id.spinWordsFound);
+		
+		mWordsFound = new HashSet<String>();
+		mMisses = 0;
+
 		mIA = new ImageAdapter(this, mGridSize, is);
-		mIA.Initialize();
-		gridview.setAdapter(mIA);
-    	gridview.setOnItemClickListener(new OnItemClickListener() {
+		mNumWordsTotal = mIA.Initialize();
+		mTextViewTotal.setText("Found: 0/" + mNumWordsTotal);
+		mTextViewScore.setText("Score: 0");
+		mGridView.setAdapter(mIA);
+		mGridView.setOnItemClickListener(new OnItemClickListener() {
     		public void onItemClick(AdapterView<?> parent, View v, int position, long id) {
     			if (mIA.mStart < 0) {
     				mIA.mStart = position;
@@ -47,33 +65,70 @@ public class WordSearchDemoActivity extends Activity {
     			else {
     				mIA.mEnd = position;
     				//Log.i(Global.INFO, "Checking " + ia.mStart + " to " + ia.mEnd);
+    				mMisses++;
     				if (mIA.mWordGrid.isWord(mIA.mStart, mIA.mEnd)) {
     					String word = mIA.mWordGrid.getWord(mIA.mStart, mIA.mEnd);
-    	    			Toast.makeText(WordSearchDemoActivity.this, "Found " + word, Toast.LENGTH_SHORT).show();
-    	    			mIA.mStart = -1;
-    	    			mIA.mEnd = -1;
-    	    			Log.i(Global.INFO, "Found " + word);
+    					if (!mWordsFound.contains(word)) {
+    						Toast.makeText(WordSearchDemoActivity.this, "Found " + word, Toast.LENGTH_SHORT).show();
+    						mIA.mStart = -1;
+    						mIA.mEnd = -1;
+    						mWordsFound.add(word);
+    						mMisses--;
+    						String[] array_words = new String[mWordsFound.size()];
+    						Iterator<String> itr = mWordsFound.iterator();
+    						
+    						int i = 0;
+    						while (itr.hasNext()) {
+    							array_words[i] = itr.next();
+    							i++;
+    						}
+    						ArrayAdapter<String> adapter = new ArrayAdapter<String>(WordSearchDemoActivity.this, android.R.layout.simple_spinner_item, array_words);
+    						mSpinWordsFound.setAdapter(adapter);
+    						mTextViewTotal.setText("Found: " + mWordsFound.size() + "/" + mNumWordsTotal);
+    						Log.i(Global.INFO, "Found " + word);
+    					}
     				}
     				else {
     					mIA.mStart = -1;
     					mIA.mEnd = -1;
     				}
+    				int score = CalcScore();
+					mTextViewScore.setText("Score: " + score);
     			}
     		}
     	});
     }
     
-    public void OnNewGame(View view) {
-    	Log.i(Global.INFO, "Button Clicked ");
-    	//mIA.Initialize();
-    	
-    	Resources resources = getResources();
-    	InputStream is = resources.openRawResource(R.raw.dictionary);
-    	mIA = new ImageAdapter(this, mGridSize, is);
-		mIA.Initialize();
-		gridview.setAdapter(mIA);
-    }
-    public class ImageAdapter extends BaseAdapter {
+	public int CalcScore() {
+		int score = 0;
+		Iterator<String> itr = mWordsFound.iterator();
+		
+		while (itr.hasNext()) {
+			score += itr.next().length();
+		}
+		
+		score -= mMisses;
+		
+		return(score);
+	}
+	
+	public void OnNewGame(View view) {
+	    Log.i(Global.INFO, "Starting grid initialization");
+	    mNumWordsTotal = mIA.Initialize();
+		mGridView.setAdapter(mIA);
+		mTextViewTotal.setText("Found: 0/" + mNumWordsTotal);
+		mTextViewScore.setText("Score: 0");
+		mWordsFound.clear();
+		mMisses = 0;
+		String[] array_words = new String[mWordsFound.size()];
+		ArrayAdapter<String> adapter = new ArrayAdapter<String>(WordSearchDemoActivity.this, android.R.layout.simple_spinner_item, array_words);
+		mSpinWordsFound.setAdapter(adapter);
+	    Log.i(Global.INFO, "Finished grid initialization");
+	}
+	public void OnExit(View view) {
+	    System.exit(0);
+	}
+	public class ImageAdapter extends BaseAdapter {
     	private wordArray mWordGrid;
     	private Context mContext;
     	private int mGridSize;
